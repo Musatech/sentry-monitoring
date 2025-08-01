@@ -80,7 +80,7 @@ def get_all_events():
                     'platform': event['platform'],
                     # 'crash_file': event['crashFile'],
                     'culprit': event['culprit'],
-                    'created_at': event['dateCreated'],
+                    'created_at': datetime.strptime(event['dateCreated'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f'),
                     'collect_id': collect_info.get('id'),
                     'kind_of_material': collect_info.get('material'),
                     'type_of_packaging': collect_info.get('packaging'),
