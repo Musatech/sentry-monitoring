@@ -1,3 +1,4 @@
+import os
 import io
 import csv
 import json
@@ -6,12 +7,16 @@ import urllib.request
 from datetime import datetime, timezone
 
 import boto3
+from dotenv import load_dotenv
+
 s3_client = boto3.client('s3')  
 
-SENTRY_ORGANIZATION_ID = 4504752180494336
-SENTRY_PROJECT_SLUG = 'mtr-facade'
-SENTRY_AUTH_TOKEN = '2901101dd4097ad4e468e044982cb9f2941555ae27f5705cae6f349364b916ea'
-S3_BUCKET_NAME = 'musa-data-sentry'
+load_dotenv()
+
+SENTRY_ORGANIZATION_ID = os.getenv('SENTRY_ORGANIZATION_ID')
+SENTRY_PROJECT_SLUG = os.getenv('SENTRY_PROJECT_SLUG')
+SENTRY_AUTH_TOKEN = os.getenv('SENTRY_AUTH_TOKEN')
+S3_BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
 
 
 def clean_quoted_strings(data):
