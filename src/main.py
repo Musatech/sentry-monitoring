@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import csv
 import json
 import urllib.error
@@ -58,56 +59,67 @@ def get_collect_info(entries):
 
 
 def get_all_events():
-    base_url = f'https://sentry.io/api/0/projects/{SENTRY_ORGANIZATION_ID}/{SENTRY_PROJECT_SLUG}/events/?full=true'
+    url = f'https://sentry.io/api/0/projects/{SENTRY_ORGANIZATION_ID}/{SENTRY_PROJECT_SLUG}/events/?full=true'
 
     headers = {
         'Authorization': f'Bearer {SENTRY_AUTH_TOKEN}',
         'Accept': 'application/json',
     }
 
-    try:
-        req = urllib.request.Request(base_url, headers=headers, method='GET')
-        with urllib.request.urlopen(req) as response:
-            response_data = response.read().decode('utf-8')
-            events = []
-            for event in json.loads(response_data):
-                collect_info = get_collect_info(event['entries'])
-                events.append({
-                    # 'id': event['id'],
-                    'group_id': event['groupID'],
-                    'event_id': event['eventID'],
-                    'project_id': event['projectID'],
-                    'event_type': event['type'],
-                    'title': event['title'],
-                    'message': event['message'],
-                    # 'user': event['user'],
-                    # 'tags': event['tags'],
-                    'platform': event['platform'],
-                    # 'crash_file': event['crashFile'],
-                    'culprit': event['culprit'],
-                    'created_at': datetime.strptime(event['dateCreated'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f'),
-                    'collect_id': collect_info.get('id'),
-                    'kind_of_material': collect_info.get('material'),
-                    'type_of_packaging': collect_info.get('packaging'),
-                })
-            return events
+    events = []
+    while url and len(events) < 1000:
+        try:
+            req = urllib.request.Request(url, headers=headers, method='GET')
+            with urllib.request.urlopen(req) as response:
+                response_data = response.read().decode('utf-8')
+                for event in json.loads(response_data):
+                    collect_info = get_collect_info(event['entries'])
+                    events.append({
+                        # 'id': event['id'],
+                        'group_id': event['groupID'],
+                        'event_id': event['eventID'],
+                        'project_id': event['projectID'],
+                        'event_type': event['type'],
+                        'title': event['title'],
+                        'message': event['message'],
+                        # 'user': event['user'],
+                        # 'tags': event['tags'],
+                        'platform': event['platform'],
+                        # 'crash_file': event['crashFile'],
+                        'culprit': event['culprit'],
+                        'created_at': datetime.strptime(event['dateCreated'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f'),
+                        'collect_id': collect_info.get('id'),
+                        'kind_of_material': collect_info.get('material'),
+                        'type_of_packaging': collect_info.get('packaging'),
+                        'hauler_cnpj': re.sub(r'[^0-9]', '', collect_info['hauler']['document']) if 'hauler' in collect_info and collect_info['hauler'].get('document') else None,
+                        'receiver_cnpj': re.sub(r'[^0-9]', '', collect_info['receiver']['document']) if 'receiver' in collect_info and collect_info['receiver'].get('document') else None,
+                    })
 
-    except urllib.error.HTTPError as e:
-        print(f"Erro HTTP: {e.code} - {e.reason}")
-        print(e.read().decode('utf-8')) # Mostra o corpo do erro para depuração
-    except urllib.error.URLError as e:
-        print(f"Erro de URL: {e.reason}")
-    except Exception as e:
-        print(f"Um erro inesperado ocorreu: {e}")
+                link_header = response.getheader('Link')
+                url = None
 
-    return []
+                if link_header:
+                    for link_part in link_header.split(', '):
+                        match = re.search(r'<(.*?)>; rel="next"', link_part)
+                        if match:
+                            url = match.group(1) if 'results="true"' in link_header else None
+
+        except urllib.error.HTTPError as e:
+            print(f"Erro HTTP: {e.code} - {e.reason}")
+            print(e.read().decode('utf-8')) # Mostra o corpo do erro para depuração
+        except urllib.error.URLError as e:
+            print(f"Erro de URL: {e.reason}")
+        except Exception as e:
+            print(f"Um erro inesperado ocorreu: {e}")
+
+    return events
 
 
 def transform_data_to_csv(data):
     csv_headers = [
         'group_id', 'event_id', 'project_id', 'event_type', 'title', 'message',
         'platform', 'culprit', 'created_at', 'collect_id', 'kind_of_material',
-        'type_of_packaging',
+        'type_of_packaging', 'hauler_cnpj', 'receiver_cnpj',
     ]
 
     csv_buffer = io.StringIO()
@@ -128,8 +140,8 @@ def lambda_handler(event, context):
     if len(events):
         csv_output = transform_data_to_csv(events)
 
-        date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-        filename = f'{SENTRY_PROJECT_SLUG}_backup/events_{date_str}.csv'
+        datetime_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')
+        filename = f'{SENTRY_PROJECT_SLUG}_backup/events_{datetime_str}.csv'
         s3_client.put_object(Bucket=S3_BUCKET_NAME, Key=filename, Body=csv_output)
 
         filename = f'{SENTRY_PROJECT_SLUG}/events.csv'
@@ -139,3 +151,7 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': 'Sucesso',
     }
+
+
+if __name__ == '__main__':
+    lambda_handler({}, {})
