@@ -43,21 +43,12 @@ def clean_quoted_strings(data):
         return data
 
 
-def extract_error_origin(event_type, message):
-    if event_type == 'default':
-        match = re.search(r"(\S+)\sAPI\serror", message, re.IGNORECASE)
-        return match.group(0) if match else None
-    elif event_type == 'error':
-        match = re.search(r"(?:[a-zA-Z]+ApiError:\s*)((\S+)\sAPI\serror)", message, re.IGNORECASE)
-        return match.group(1).strip() if match else None
-
-
 def get_collect_info(entries):
     for entry in entries:
         threads_data = entry.get('data', {})
         threads_list = threads_data.get('values', [])
         for thread in threads_list:
-            stacktrace = thread.get('stacktrace', {})
+            stacktrace = thread.get('stacktrace', {}) or {}
             frames = stacktrace.get('frames', [])
 
             for frame in frames:
@@ -84,17 +75,13 @@ def get_all_events():
                 for event in json.loads(response_data):
                     collect_info = get_collect_info(event['entries'])
                     events.append({
-                        # 'id': event['id'],
                         'issue_id': event['groupID'],
                         'event_id': event['eventID'],
                         'project_id': event['projectID'],
                         'event_type': event['type'],
                         'title': event['title'],
                         'message': event['message'],
-                        # 'user': event['user'],
-                        # 'tags': event['tags'],
                         'platform': event['platform'],
-                        # 'crash_file': event['crashFile'],
                         'culprit': event['culprit'],
                         'created_at': datetime.strptime(event['dateCreated'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f'),
                         'collect_id': collect_info.get('id'),
@@ -103,7 +90,6 @@ def get_all_events():
                         'hauler_cnpj': re.sub(r'[^0-9]', '', collect_info['hauler']['document']) if 'hauler' in collect_info and collect_info['hauler'].get('document') else None,
                         'receiver_cnpj': re.sub(r'[^0-9]', '', collect_info['receiver']['document']) if 'receiver' in collect_info and collect_info['receiver'].get('document') else None,
                         'sentry_url': f"https://musa-tecnologia.sentry.io/issues/{event['groupID']}/events/{event['eventID']}/?project={event['projectID']}",
-                        'category': extract_error_origin(event['type'], event['title'])
                     })
 
                 link_header = response.getheader('Link')
@@ -131,7 +117,6 @@ def transform_data_to_csv(data):
         'issue_id', 'event_id', 'project_id', 'event_type', 'title', 'message',
         'platform', 'culprit', 'created_at', 'collect_id', 'kind_of_material',
         'type_of_packaging', 'hauler_cnpj', 'receiver_cnpj', 'sentry_url',
-        'category',
     ]
 
     csv_buffer = io.StringIO()
