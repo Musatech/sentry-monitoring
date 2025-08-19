@@ -83,7 +83,7 @@ def get_all_events():
                         'message': event['message'],
                         'platform': event['platform'],
                         'culprit': event['culprit'],
-                        'created_at': datetime.strptime(event['dateCreated'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f'),
+                        'created_at': datetime.strptime(event['dateCreated'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f'),
                         'collect_id': collect_info.get('id'),
                         'kind_of_material': collect_info.get('material'),
                         'type_of_packaging': collect_info.get('packaging'),
