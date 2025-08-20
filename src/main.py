@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 
 import boto3
 from dotenv import load_dotenv
-import time
 
 s3_client = boto3.client('s3')  
 
@@ -68,7 +67,7 @@ def get_all_events():
     }
 
     events = []
-    while url and len(events) < 2000:
+    while url and len(events) < 1000:
         try:
             req = urllib.request.Request(url, headers=headers, method='GET')
             with urllib.request.urlopen(req) as response:
@@ -140,7 +139,6 @@ def transform_data_to_csv(data):
 
 def lambda_handler(event, context):
     events = get_all_events()
-    return
 
     if len(events):
         csv_output = transform_data_to_csv(events)
