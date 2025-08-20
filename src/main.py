@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 import boto3
 from dotenv import load_dotenv
+import time
 
 s3_client = boto3.client('s3')  
 
@@ -67,13 +68,19 @@ def get_all_events():
     }
 
     events = []
-    while url and len(events) < 1000:
+    while url and len(events) < 2000:
         try:
             req = urllib.request.Request(url, headers=headers, method='GET')
             with urllib.request.urlopen(req) as response:
                 response_data = response.read().decode('utf-8')
                 for event in json.loads(response_data):
                     collect_info = get_collect_info(event['entries'])
+                    
+                    try:
+                        created_at = datetime.strptime(event['dateCreated'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')
+                    except ValueError:
+                        created_at = datetime.strptime(event['dateCreated'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')
+
                     events.append({
                         'issue_id': event['groupID'],
                         'event_id': event['eventID'],
@@ -83,7 +90,7 @@ def get_all_events():
                         'message': event['message'],
                         'platform': event['platform'],
                         'culprit': event['culprit'],
-                        'created_at': datetime.strptime(event['dateCreated'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f'),
+                        'created_at': created_at,
                         'collect_id': collect_info.get('id'),
                         'kind_of_material': collect_info.get('material'),
                         'type_of_packaging': collect_info.get('packaging'),
@@ -133,6 +140,7 @@ def transform_data_to_csv(data):
 
 def lambda_handler(event, context):
     events = get_all_events()
+    return
 
     if len(events):
         csv_output = transform_data_to_csv(events)
